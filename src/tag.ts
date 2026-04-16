@@ -1,50 +1,55 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ensureSnapshotsDir } from './snapshot';
 
-const TAGS_FILE = () => path.join(ensureSnapshotsDir(), '.tags.json');
+type TagMap = Record<string, string[]>;
 
-function loadTags(): Record<string, string[]> {
-  const file = TAGS_FILE();
+const TAGS_FILE = 'tags.json';
+
+export function loadTags(dir: string): TagMap {
+  const file = path.join(dir, TAGS_FILE);
   if (!fs.existsSync(file)) return {};
-  return JSON.parse(fs.readFileSync(file, 'utf-8'));
-}
-
-function saveTags(tags: Record<string, string[]>): void {
-  fs.writeFileSync(TAGS_FILE(), JSON.stringify(tags, null, 2));
-}
-
-export function addTag(snapshotName: string, tag: string): void {
-  const tags = loadTags();
-  if (!tags[snapshotName]) tags[snapshotName] = [];
-  if (!tags[snapshotName].includes(tag)) {
-    tags[snapshotName].push(tag);
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf-8')) as TagMap;
+  } catch {
+    return {};
   }
-  saveTags(tags);
 }
 
-export function removeTag(snapshotName: string, tag: string): void {
-  const tags = loadTags();
-  if (!tags[snapshotName]) return;
-  tags[snapshotName] = tags[snapshotName].filter((t) => t !== tag);
-  if (tags[snapshotName].length === 0) delete tags[snapshotName];
-  saveTags(tags);
+export function saveTags(dir: string, tags: TagMap): void {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, TAGS_FILE), JSON.stringify(tags, null, 2));
 }
 
-export function getTagsForSnapshot(snapshotName: string): string[] {
-  return loadTags()[snapshotName] ?? [];
+export function addTag(dir: string, snapshot: string, tag: string): void {
+  const tags = loadTags(dir);
+  if (!tags[snapshot]) tags[snapshot] = [];
+  if (!tags[snapshot].includes(tag)) tags[snapshot].push(tag);
+  saveTags(dir, tags);
 }
 
-export function getSnapshotsByTag(tag: string): string[] {
-  const tags = loadTags();
+export function removeTag(dir: string, snapshot: string, tag: string): void {
+  const tags = loadTags(dir);
+  if (!tags[snapshot]) return;
+  tags[snapshot] = tags[snapshot].filter(t => t !== tag);
+  if (tags[snapshot].length === 0) delete tags[snapshot];
+  saveTags(dir, tags);
+}
+
+export function getTagsForSnapshot(dir: string, snapshot: string): string[] {
+  const tags = loadTags(dir);
+  return tags[snapshot] ?? [];
+}
+
+export function getSnapshotsForTag(dir: string, tag: string): string[] {
+  const tags = loadTags(dir);
   return Object.entries(tags)
-    .filter(([, t]) => t.includes(tag))
-    .map(([name]) => name);
+    .filter(([, tagList]) => tagList.includes(tag))
+    .map(([snapshot]) => snapshot);
 }
 
-export function listAllTags(): string[] {
-  const tags = loadTags();
+export function listAllTags(dir: string): string[] {
+  const tags = loadTags(dir);
   const all = new Set<string>();
-  for (const t of Object.values(tags)) t.forEach((tag) => all.add(tag));
+  Object.values(tags).forEach(list => list.forEach(t => all.add(t)));
   return Array.from(all).sort();
 }
