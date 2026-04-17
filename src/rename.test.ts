@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { renameSnapshot, copySnapshot } from './rename';
-import { saveSnapshot, listSnapshots } from './snapshot';
+import { saveSnapshot, listSnapshots, loadSnapshot } from './snapshot';
 
 const TEST_DIR = '.envsnap-rename-test';
 
@@ -27,6 +27,13 @@ describe('renameSnapshot', () => {
     expect(names).not.toContain('old');
   });
 
+  it('preserves snapshot data after rename', () => {
+    saveSnapshot('old', { FOO: 'bar', BAZ: 'qux' }, TEST_DIR);
+    renameSnapshot('old', 'new', TEST_DIR);
+    const data = loadSnapshot('new', TEST_DIR);
+    expect(data).toEqual({ FOO: 'bar', BAZ: 'qux' });
+  });
+
   it('throws if source snapshot does not exist', () => {
     expect(() => renameSnapshot('ghost', 'new', TEST_DIR)).toThrow(
       'Snapshot "ghost" does not exist.'
@@ -49,6 +56,13 @@ describe('copySnapshot', () => {
     const names = listSnapshots(TEST_DIR);
     expect(names).toContain('source');
     expect(names).toContain('dest');
+  });
+
+  it('preserves snapshot data after copy', () => {
+    saveSnapshot('source', { X: 'y', Z: 'w' }, TEST_DIR);
+    copySnapshot('source', 'dest', TEST_DIR);
+    const data = loadSnapshot('dest', TEST_DIR);
+    expect(data).toEqual({ X: 'y', Z: 'w' });
   });
 
   it('throws if source does not exist', () => {
