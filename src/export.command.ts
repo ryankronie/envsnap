@@ -2,17 +2,18 @@ import { Command } from 'commander';
 import { exportSnapshot, ExportFormat } from './export';
 import * as path from 'path';
 
+const VALID_FORMATS: ExportFormat[] = ['dotenv', 'shell', 'json'];
+
 export function registerExportCommand(program: Command): void {
   program
     .command('export <name>')
     .description('Export a snapshot to a file or stdout')
-    .option('-f, --format <format>', 'Output format: dotenv | shell | json', 'dotenv')
+    .option('-f, --format <format>', `Output format: ${VALID_FORMATS.join(' | ')}`, 'dotenv')
     .option('-o, --output <path>', 'Write output to a file instead of stdout')
     .action(async (name: string, options: { format: string; output?: string }) => {
       const format = options.format as ExportFormat;
-      const validFormats: ExportFormat[] = ['dotenv', 'shell', 'json'];
-      if (!validFormats.includes(format)) {
-        console.error(`Invalid format "${format}". Choose from: ${validFormats.join(', ')}`);
+      if (!VALID_FORMATS.includes(format)) {
+        console.error(`Invalid format "${format}". Choose from: ${VALID_FORMATS.join(', ')}`);
         process.exit(1);
       }
       try {
