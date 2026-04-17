@@ -1,14 +1,22 @@
-export type Env = Record<string, string>;
-
 export interface Snapshot {
   name: string;
-  createdAt: string;
-  env: Env;
+  createdAt: number;
+  env: Record<string, string>;
 }
 
 export interface DiffEntry {
   key: string;
-  type: 'added' | 'removed' | 'changed';
+  status: 'added' | 'removed' | 'changed';
   oldValue?: string;
   newValue?: string;
+}
+
+export interface HistoryEntry {
+  timestamp: number;
+  action: string;
+  snapshotName: string;
+}
+
+export interface TagMap {
+  [snapshotName: string]: string[];
 }
