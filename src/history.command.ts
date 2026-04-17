@@ -10,7 +10,8 @@ export function registerHistoryCommand(program: Command): void {
     .command('list')
     .description('List all recorded actions')
     .option('-n, --name <name>', 'Filter by snapshot name')
-    .action(async (opts: { name?: string }) => {
+    .option('-l, --limit <number>', 'Limit number of entries shown', parseInt)
+    .action(async (opts: { name?: string; limit?: number }) => {
       try {
         const entries = opts.name
           ? await getHistoryForSnapshot(opts.name)
@@ -19,11 +20,12 @@ export function registerHistoryCommand(program: Command): void {
           console.log('No history found.');
           return;
         }
-        for (const e of entries) {
+        const limited = opts.limit ? entries.slice(-opts.limit) : entries;
+        for (const e of limited) {
           console.log(`[${new Date(e.timestamp).toISOString()}] ${e.action} -> ${e.snapshotName}`);
         }
       } catch (err: any) {
-        console.error(`Error: ${err.message}`);
+        .message}`);
         process.exit(1);
       }
     });
