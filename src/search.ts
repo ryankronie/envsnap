@@ -1,56 +1,46 @@
-import { loadSnapshot, listSnapshots } from './snapshot';
-import { EnvSnapshot } from './types';
+import { listSnapshots, loadSnapshot } from './snapshot';
 
 export interface SearchResult {
   snapshotName: string;
-  matchedKeys: string[];
+  matches: Record<string, string>;
 }
 
-export function searchByKey(snapshots: Record<string, EnvSnapshot>, query: string): SearchResult[] {
+export function searchByKey(pattern: string): SearchResult[] {
+  const regex = new RegExp(pattern, 'i');
   const results: SearchResult[] = [];
-  const lower = query.toLowerCase();
 
-  for (const [name, snapshot] of Object.entries(snapshots)) {
-    const matchedKeys = Object.keys(snapshot.env).filter(k =>
-      k.toLowerCase().includes(lower)
-    );
-    if (matchedKeys.length > 0) {
-      results.push({ snapshotName: name, matchedKeys });
+  for (const name of listSnapshots()) {
+    const snapshot = loadSnapshot(name);
+    const matches: Record<string, string> = {};
+    for (const [key, value] of Object.entries(snapshot.env)) {
+      if (regex.test(key)) {
+        matches[key] = value;
+      }
+    }
+    if (Object.keys(matches).length > 0) {
+      results.push({ snapshotName: name, matches });
     }
   }
 
   return results;
 }
 
-export function searchByValue(snapshots: Record<string, EnvSnapshot>, query: string): SearchResult[] {
+export function searchByValue(pattern: string): SearchResult[] {
+  const regex = new RegExp(pattern, 'i');
   const results: SearchResult[] = [];
-  const lower = query.toLowerCase();
 
-  for (const [name, snapshot] of Object.entries(snapshots)) {
-    const matchedKeys = Object.keys(snapshot.env).filter(k =>
-      snapshot.env[k].toLowerCase().includes(lower)
-    );
-    if (matchedKeys.length > 0) {
-      results.push({ snapshotName: name, matchedKeys });
+  for (const name of listSnapshots()) {
+    const snapshot = loadSnapshot(name);
+    const matches: Record<string, string> = {};
+    for (const [key, value] of Object.entries(snapshot.env)) {
+      if (regex.test(value)) {
+        matches[key] = value;
+      }
+    }
+    if (Object.keys(matches).length > 0) {
+      results.push({ snapshotName: name, matches });
     }
   }
 
   return results;
-}
-
-export async function searchSnapshots(
-  projectDir: string,
-  query: string,
-  mode: 'key' | 'value' = 'key'
-): Promise<SearchResult[]> {
-  const names = await listSnapshots(projectDir);
-  const snapshots: Record<string, EnvSnapshot> = {};
-
-  for (const name of names) {
-    snapshots[name] = await loadSnapshot(projectDir, name);
-  }
-
-  return mode === 'key'
-    ? searchByKey(snapshots, query)
-    : searchByValue(snapshots, query);
 }
