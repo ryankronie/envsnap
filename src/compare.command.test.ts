@@ -14,6 +14,19 @@ function makeProgram() {
   return program;
 }
 
+/** Capture console.log output during an async operation. */
+async function captureOutput(fn: () => Promise<void>): Promise<string[]> {
+  const logs: string[] = [];
+  const orig = console.log;
+  console.log = (msg: string) => logs.push(msg ?? '');
+  try {
+    await fn();
+  } finally {
+    console.log = orig;
+  }
+  return logs;
+}
+
 beforeEach(() => {
   process.env.SNAPSHOTS_DIR = TEST_DIR;
 });
@@ -30,13 +43,10 @@ describe('compare command', () => {
     await saveSnapshot('c1', { FOO: 'bar' });
     await saveSnapshot('c2', { FOO: 'baz' });
 
-    const logs: string[] = [];
     const program = makeProgram();
-    const orig = console.log;
-    console.log = (msg: string) => logs.push(msg ?? '');
-
-    await program.parseAsync(['compare', 'c1', 'c2'], { from: 'user' });
-    console.log = orig;
+    const logs = await captureOutput(() =>
+      program.parseAsync(['compare', 'c1', 'c2'], { from: 'user' })
+    );
 
     expect(logs.some((l) => l.includes('c1'))).toBe(true);
   });
@@ -45,13 +55,10 @@ describe('compare command', () => {
     await saveSnapshot('s1', { A: '1', B: '2' });
     await saveSnapshot('s2', { A: '1', C: '3' });
 
-    const logs: string[] = [];
     const program = makeProgram();
-    const orig = console.log;
-    console.log = (msg: string) => logs.push(msg ?? '');
-
-    await program.parseAsync(['compare', 's1', 's2', '--summary'], { from: 'user' });
-    console.log = orig;
+    const logs = await captureOutput(() =>
+      program.parseAsync(['compare', 's1', 's2', '--summary'], { from: 'user' })
+    );
 
     expect(logs.some((l) => /Added/.test(l))).toBe(true);
   });
