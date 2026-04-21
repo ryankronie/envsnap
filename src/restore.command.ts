@@ -26,6 +26,11 @@ export function registerRestoreCommand(program: Command): void {
 
           const count = Object.keys(restored).length;
 
+          if (count === 0) {
+            console.warn(`⚠ No variables were restored from "${name}".`);
+            return;
+          }
+
           if (options.file) {
             console.log(
               `✔ Restored ${count} variable(s) from "${name}" to ${options.file}`
