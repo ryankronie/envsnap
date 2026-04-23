@@ -36,6 +36,21 @@ describe('mergeEnvs', () => {
     const { conflicts } = mergeEnvs(base, base, 'theirs');
     expect(conflicts).toHaveLength(0);
   });
+
+  it('returns empty added and overwritten when incoming is empty', () => {
+    const { merged, added, overwritten } = mergeEnvs(base, {}, 'theirs');
+    expect(merged).toEqual(base);
+    expect(added).toHaveLength(0);
+    expect(overwritten).toHaveLength(0);
+  });
+
+  it('returns empty added and overwritten when base is empty', () => {
+    const { merged, added, overwritten } = mergeEnvs({}, incoming, 'theirs');
+    expect(merged).toEqual(incoming);
+    expect(added).toContain('BAR');
+    expect(added).toContain('SHARED');
+    expect(overwritten).toHaveLength(0);
+  });
 });
 
 describe('previewMerge', () => {
