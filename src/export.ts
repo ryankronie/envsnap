@@ -38,7 +38,16 @@ export async function exportSnapshot(
   const env = await loadSnapshot(name);
   const content = renderExport(env, format);
   if (outputPath) {
-    fs.writeFileSync(path.resolve(outputPath), content, 'utf-8');
+    const resolved = path.resolve(outputPath);
+    try {
+      fs.writeFileSync(resolved, content, 'utf-8');
+    } catch (err) {
+      throw new Error(
+        `Failed to write export to "${resolved}": ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
   }
   return content;
 }
