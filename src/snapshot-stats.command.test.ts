@@ -9,6 +9,17 @@ function makeProgram() {
   return program;
 }
 
+/** Helper to capture console.log output during a program.parseAsync call */
+async function captureLog(fn: () => Promise<void>): Promise<string> {
+  const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    await fn();
+    return spy.mock.calls.map(c => c.join(' ')).join('\n');
+  } finally {
+    spy.mockRestore();
+  }
+}
+
 describe('stats show command', () => {
   const name = '__cmd_stats_snap__';
   afterEach(async () => { try { await deleteSnapshot(name); } catch {} });
@@ -16,13 +27,12 @@ describe('stats show command', () => {
   it('prints stats for a saved snapshot', async () => {
     await saveSnapshot(name, { FOO: 'bar', EMPTY: '' });
     const program = makeProgram();
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    await program.parseAsync(['node', 'envsnap', 'stats', 'show', name]);
-    const output = spy.mock.calls.map(c => c.join(' ')).join('\n');
+    const output = await captureLog(() =>
+      program.parseAsync(['node', 'envsnap', 'stats', 'show', name])
+    );
     expect(output).toContain('Total keys:');
     expect(output).toContain('2');
     expect(output).toContain('Empty values:');
-    spy.mockRestore();
   });
 
   it('exits with error for missing snapshot', async () => {
@@ -43,11 +53,10 @@ describe('stats summary command', () => {
     await saveSnapshot(names[0], { A: '1' });
     await saveSnapshot(names[1], { B: '2', C: '3' });
     const program = makeProgram();
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    await program.parseAsync(['node', 'envsnap', 'stats', 'summary']);
-    const output = spy.mock.calls.map(c => c.join(' ')).join('\n');
+    const output = await captureLog(() =>
+      program.parseAsync(['node', 'envsnap', 'stats', 'summary'])
+    );
     expect(output).toContain('Total snapshots:');
     expect(output).toContain('Average keys:');
-    spy.mockRestore();
   });
 });
