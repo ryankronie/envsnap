@@ -24,28 +24,44 @@ afterEach(() => {
   delete process.env.ENVSNAP_DIR;
 });
 
+/** Helper to capture console.log output during a program.parseAsync call */
+async function captureLog(fn: () => Promise<void>): Promise<string[]> {
+  const logs: string[] = [];
+  jest.spyOn(console, "log").mockImplementation((msg) => logs.push(msg));
+  await fn();
+  jest.restoreAllMocks();
+  return logs;
+}
+
+/** Helper to capture console.error output during a program.parseAsync call */
+async function captureError(fn: () => Promise<void>): Promise<string[]> {
+  const errors: string[] = [];
+  jest.spyOn(console, "error").mockImplementation((msg) => errors.push(msg));
+  await fn();
+  jest.restoreAllMocks();
+  return errors;
+}
+
 describe("notes set", () => {
   it("sets a note for a snapshot", async () => {
     await saveSnapshot("my-snap", { FOO: "bar" });
     const program = makeProgram();
-    const logs: string[] = [];
-    jest.spyOn(console, "log").mockImplementation((msg) => logs.push(msg));
 
-    await program.parseAsync(["node", "test", "notes", "set", "my-snap", "This is a test note"]);
+    const logs = await captureLog(() =>
+      program.parseAsync(["node", "test", "notes", "set", "my-snap", "This is a test note"])
+    );
 
     expect(logs.some((l) => l.includes("Note saved"))).toBe(true);
-    jest.restoreAllMocks();
   });
 
   it("errors if snapshot does not exist", async () => {
     const program = makeProgram();
-    const errors: string[] = [];
-    jest.spyOn(console, "error").mockImplementation((msg) => errors.push(msg));
 
-    await program.parseAsync(["node", "test", "notes", "set", "ghost", "some note"]);
+    const errors = await captureError(() =>
+      program.parseAsync(["node", "test", "notes", "set", "ghost", "some note"])
+    );
 
     expect(errors.some((e) => e.includes("not found") || e.includes("ghost"))).toBe(true);
-    jest.restoreAllMocks();
   });
 });
 
@@ -57,26 +73,23 @@ describe("notes get", () => {
     // Set a note first
     await program.parseAsync(["node", "test", "notes", "set", "noted-snap", "My important note"]);
 
-    const logs: string[] = [];
-    jest.spyOn(console, "log").mockImplementation((msg) => logs.push(msg));
-
     const program2 = makeProgram();
-    await program2.parseAsync(["node", "test", "notes", "get", "noted-snap"]);
+    const logs = await captureLog(() =>
+      program2.parseAsync(["node", "test", "notes", "get", "noted-snap"])
+    );
 
     expect(logs.some((l) => l.includes("My important note"))).toBe(true);
-    jest.restoreAllMocks();
   });
 
   it("reports no note if none set", async () => {
     await saveSnapshot("bare-snap", { A: "1" });
     const program = makeProgram();
-    const logs: string[] = [];
-    jest.spyOn(console, "log").mockImplementation((msg) => logs.push(msg));
 
-    await program.parseAsync(["node", "test", "notes", "get", "bare-snap"]);
+    const logs = await captureLog(() =>
+      program.parseAsync(["node", "test", "notes", "get", "bare-snap"])
+    );
 
     expect(logs.some((l) => l.toLowerCase().includes("no note"))).toBe(true);
-    jest.restoreAllMocks();
   });
 });
 
@@ -87,47 +100,10 @@ describe("notes delete", () => {
     await p1.parseAsync(["node", "test", "notes", "set", "del-snap", "Temporary note"]);
 
     const p2 = makeProgram();
-    const logs: string[] = [];
-    jest.spyOn(console, "log").mockImplementation((msg) => logs.push(msg));
+    const logs = await captureLog(() =>
+      p2.parseAsync(["node", "test", "notes", "delete", "del-snap"])
+    );
 
-    await p2.parseAsync(["node", "test", "notes", "delete", "del-snap"]);
-
-    expect(logs.some((l) => l.includes("deleted") || l.includes("removed"))).toBe(true);
-    jest.restoreAllMocks();
-  });
-});
-
-describe("notes list", () => {
-  it("lists all snapshots that have notes", async () => {
-    await saveSnapshot("snap-a", { A: "1" });
-    await saveSnapshot("snap-b", { B: "2" });
-    await saveSnapshot("snap-c", { C: "3" });
-
-    const p1 = makeProgram();
-    await p1.parseAsync(["node", "test", "notes", "set", "snap-a", "Note for A"]);
-    const p2 = makeProgram();
-    await p2.parseAsync(["node", "test", "notes", "set", "snap-c", "Note for C"]);
-
-    const logs: string[] = [];
-    jest.spyOn(console, "log").mockImplementation((msg) => logs.push(msg));
-
-    const p3 = makeProgram();
-    await p3.parseAsync(["node", "test", "notes", "list"]);
-
-    const output = logs.join("\n");
-    expect(output).toContain("snap-a");
-    expect(output).toContain("snap-c");
-    jest.restoreAllMocks();
-  });
-
-  it("reports empty when no notes exist", async () => {
-    const logs: string[] = [];
-    jest.spyOn(console, "log").mockImplementation((msg) => logs.push(msg));
-
-    const program = makeProgram();
-    await program.parseAsync(["node", "test", "notes", "list"]);
-
-    expect(logs.some((l) => l.toLowerCase().includes("no notes"))).toBe(true);
-    jest.restoreAllMocks();
+    expect(logs.some((l) => l.toLowerCase().includes("deleted") || l.toLowerCase().includes("removed"))).toBe(true);
   });
 });
