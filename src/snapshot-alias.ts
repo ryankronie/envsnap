@@ -1,55 +1,50 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import fs from 'fs/promises';
+import path from 'path';
+import { ensureSnapshotsDir } from './snapshot';
 
-const aliasFile = path.join(os.homedir(), '.envsnap', 'aliases.json');
+export type AliasMap = Record<string, string>;
 
-export interface AliasMap {
-  [alias: string]: string;
+export function aliasFilePath(): string {
+  return path.join(process.env.ENVSNAP_DIR ?? '.envsnap', 'aliases.json');
 }
 
-export function loadAliases(): AliasMap {
-  if (!fs.existsSync(aliasFile)) return {};
+export async function loadAliases(): Promise<AliasMap> {
+  await ensureSnapshotsDir();
   try {
-    return JSON.parse(fs.readFileSync(aliasFile, 'utf-8'));
+    const raw = await fs.readFile(aliasFilePath(), 'utf-8');
+    return JSON.parse(raw) as AliasMap;
   } catch {
     return {};
   }
 }
 
-export function saveAliases(aliases: AliasMap): void {
-  const dir = path.dirname(aliasFile);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(aliasFile, JSON.stringify(aliases, null, 2));
+export async function saveAliases(aliases: AliasMap): Promise<void> {
+  await ensureSnapshotsDir();
+  await fs.writeFile(aliasFilePath(), JSON.stringify(aliases, null, 2), 'utf-8');
 }
 
-export function setAlias(alias: string, snapshotName: string): void {
-  const aliases = loadAliases();
-  aliases[alias] = snapshotName;
-  saveAliases(aliases);
+export async function setAlias(name: string, target: string): Promise<void> {
+  const aliases = await loadAliases();
+  aliases[name] = target;
+  await saveAliases(aliases);
 }
 
-export function removeAlias(alias: string): boolean {
-  const aliases = loadAliases();
-  if (!(alias in aliases)) return false;
-  delete aliases[alias];
-  saveAliases(aliases);
-  return true;
+export async function removeAlias(name: string): Promise<void> {
+  const aliases = await loadAliases();
+  delete aliases[name];
+  await saveAliases(aliases);
 }
 
-export function resolveAlias(nameOrAlias: string): string {
-  const aliases = loadAliases();
-  return aliases[nameOrAlias] ?? nameOrAlias;
+export async function resolveAlias(name: string): Promise<string | null> {
+  const aliases = await loadAliases();
+  return aliases[name] ?? null;
 }
 
-export function getAliasesForSnapshot(snapshotName: string): string[] {
-  const aliases = loadAliases();
-  return Object.entries(aliases)
-    .filter(([, snap]) => snap === snapshotName)
-    .map(([alias]) => alias);
+export async function listAliases(): Promise<AliasMap> {
+  return loadAliases();
 }
 
-export function listAliases(): Array<{ alias: string; snapshot: string }> {
-  const aliases = loadAliases();
-  return Object.entries(aliases).map(([alias, snapshot]) => ({ alias, snapshot }));
+export async function resolveOrPassthrough(nameOrAlias: string): Promise<string> {
+  const resolved = await resolveAlias(nameOrAlias);
+  return resolved ?? nameOrAlias;
 }

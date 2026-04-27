@@ -1,85 +1,75 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import {
-  loadAliases,
-  saveAliases,
-  setAlias,
-  removeAlias,
-  resolveAlias,
-  getAliasesForSnapshot,
-  listAliases,
-} from './snapshot-alias';
+import fs from 'fs/promises';
+import path from 'path';
+import { setAlias, removeAlias, resolveAlias, listAliases, resolveOrPassthrough, aliasFilePath } from './snapshot-alias';
 
-const aliasFile = path.join(os.homedir(), '.envsnap', 'aliases.json');
+const TEST_DIR = '.envsnap-alias-test';
 
-function cleanup() {
-  if (fs.existsSync(aliasFile)) fs.unlinkSync(aliasFile);
-}
-
-beforeEach(cleanup);
-afterAll(cleanup);
-
-describe('loadAliases', () => {
-  it('returns empty object when file does not exist', () => {
-    expect(loadAliases()).toEqual({});
-  });
+beforeEach(async () => {
+  process.env.ENVSNAP_DIR = TEST_DIR;
+  await fs.rm(TEST_DIR, { recursive: true, force: true });
 });
 
-describe('setAlias / loadAliases', () => {
-  it('persists an alias', () => {
-    setAlias('prod', 'production-2024');
-    expect(loadAliases()).toEqual({ prod: 'production-2024' });
+afterEach(async () => {
+  await fs.rm(TEST_DIR, { recursive: true, force: true });
+  delete process.env.ENVSNAP_DIR;
+});
+
+describe('setAlias / listAliases', () => {
+  it('saves and retrieves an alias', async () => {
+    await setAlias('prod', 'snapshot-2024');
+    const aliases = await listAliases();
+    expect(aliases['prod']).toBe('snapshot-2024');
   });
 
-  it('overwrites existing alias', () => {
-    setAlias('prod', 'production-2024');
-    setAlias('prod', 'production-2025');
-    expect(loadAliases()['prod']).toBe('production-2025');
+  it('overwrites an existing alias', async () => {
+    await setAlias('prod', 'snapshot-old');
+    await setAlias('prod', 'snapshot-new');
+    const aliases = await listAliases();
+    expect(aliases['prod']).toBe('snapshot-new');
   });
 });
 
 describe('removeAlias', () => {
-  it('removes an existing alias and returns true', () => {
-    setAlias('staging', 'staging-snap');
-    expect(removeAlias('staging')).toBe(true);
-    expect(loadAliases()['staging']).toBeUndefined();
+  it('removes an existing alias', async () => {
+    await setAlias('dev', 'snapshot-dev');
+    await removeAlias('dev');
+    const aliases = await listAliases();
+    expect(aliases['dev']).toBeUndefined();
   });
 
-  it('returns false when alias does not exist', () => {
-    expect(removeAlias('nonexistent')).toBe(false);
+  it('does not throw when alias does not exist', async () => {
+    await expect(removeAlias('nonexistent')).resolves.toBeUndefined();
   });
 });
 
 describe('resolveAlias', () => {
-  it('resolves a known alias to snapshot name', () => {
-    setAlias('dev', 'dev-snapshot-v1');
-    expect(resolveAlias('dev')).toBe('dev-snapshot-v1');
+  it('returns the target snapshot name', async () => {
+    await setAlias('staging', 'snapshot-staging');
+    const result = await resolveAlias('staging');
+    expect(result).toBe('snapshot-staging');
   });
 
-  it('returns the input unchanged when not an alias', () => {
-    expect(resolveAlias('unknown-alias')).toBe('unknown-alias');
-  });
-});
-
-describe('getAliasesForSnapshot', () => {
-  it('returns all aliases pointing to a snapshot', () => {
-    setAlias('a1', 'snap-x');
-    setAlias('a2', 'snap-x');
-    setAlias('a3', 'snap-y');
-    const result = getAliasesForSnapshot('snap-x');
-    expect(result).toContain('a1');
-    expect(result).toContain('a2');
-    expect(result).not.toContain('a3');
+  it('returns null for unknown alias', async () => {
+    const result = await resolveAlias('unknown');
+    expect(result).toBeNull();
   });
 });
 
-describe('listAliases', () => {
-  it('returns all alias entries as array', () => {
-    setAlias('foo', 'foo-snap');
-    setAlias('bar', 'bar-snap');
-    const list = listAliases();
-    expect(list).toContainEqual({ alias: 'foo', snapshot: 'foo-snap' });
-    expect(list).toContainEqual({ alias: 'bar', snapshot: 'bar-snap' });
+describe('resolveOrPassthrough', () => {
+  it('returns resolved alias when found', async () => {
+    await setAlias('prod', 'snapshot-prod');
+    const result = await resolveOrPassthrough('prod');
+    expect(result).toBe('snapshot-prod');
+  });
+
+  it('returns original name when alias not found', async () => {
+    const result = await resolveOrPassthrough('snapshot-direct');
+    expect(result).toBe('snapshot-direct');
+  });
+});
+
+describe('aliasFilePath', () => {
+  it('uses ENVSNAP_DIR env variable', () => {
+    expect(aliasFilePath()).toBe(path.join(TEST_DIR, 'aliases.json'));
   });
 });
