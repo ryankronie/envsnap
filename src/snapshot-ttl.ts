@@ -1,68 +1,70 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ensureSnapshotsDir } from './snapshot';
 
-const TTL_FILE = 'ttl.json';
+export const ttlFilePath = (dir: string) => path.join(dir, '.ttls.json');
 
 export interface TtlEntry {
-  snapshotName: string;
-  expiresAt: number; // Unix timestamp in ms
+  expiresAt: number;
 }
 
 export type TtlMap = Record<string, TtlEntry>;
 
-export function ttlFilePath(): string {
-  return path.join(ensureSnapshotsDir(), TTL_FILE);
-}
-
-export function loadTtls(): TtlMap {
-  const file = ttlFilePath();
+export async function loadTtls(dir: string): Promise<TtlMap> {
+  const file = ttlFilePath(dir);
   if (!fs.existsSync(file)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf-8')) as TtlMap;
-  } catch {
-    return {};
-  }
+  const raw = await fs.promises.readFile(file, 'utf-8');
+  return JSON.parse(raw) as TtlMap;
 }
 
-export function saveTtls(ttls: TtlMap): void {
-  fs.writeFileSync(ttlFilePath(), JSON.stringify(ttls, null, 2));
+export async function saveTtls(ttls: TtlMap, dir: string): Promise<void> {
+  const file = ttlFilePath(dir);
+  await fs.promises.writeFile(file, JSON.stringify(ttls, null, 2), 'utf-8');
 }
 
-export function setTtl(snapshotName: string, ttlSeconds: number): TtlEntry {
-  const ttls = loadTtls();
-  const entry: TtlEntry = {
-    snapshotName,
-    expiresAt: Date.now() + ttlSeconds * 1000,
+export function parseTtlString(ttl: string): number {
+  const match = ttl.match(/^(\d+)(d|h|m|s)$/);
+  if (!match) throw new Error(`Invalid TTL format: "${ttl}". Use e.g. 1d, 2h, 30m, 60s.`);
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  const multipliers: Record<string, number> = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
   };
-  ttls[snapshotName] = entry;
-  saveTtls(ttls);
+  return value * multipliers[unit];
+}
+
+export async function setTtl(name: string, ttlStr: string, dir: string): Promise<TtlEntry> {
+  const ms = parseTtlString(ttlStr);
+  const entry: TtlEntry = { expiresAt: Date.now() + ms };
+  const ttls = await loadTtls(dir);
+  ttls[name] = entry;
+  await saveTtls(ttls, dir);
   return entry;
 }
 
-export function removeTtl(snapshotName: string): boolean {
-  const ttls = loadTtls();
-  if (!ttls[snapshotName]) return false;
-  delete ttls[snapshotName];
-  saveTtls(ttls);
-  return true;
+export async function removeTtl(name: string, dir: string): Promise<void> {
+  const ttls = await loadTtls(dir);
+  delete ttls[name];
+  await saveTtls(ttls, dir);
 }
 
-export function getTtl(snapshotName: string): TtlEntry | null {
-  const ttls = loadTtls();
-  return ttls[snapshotName] ?? null;
+export async function getTtl(name: string, dir: string): Promise<TtlEntry | null> {
+  const ttls = await loadTtls(dir);
+  return ttls[name] ?? null;
 }
 
-export function isExpired(snapshotName: string): boolean {
-  const entry = getTtl(snapshotName);
+export async function isExpired(name: string, dir: string): Promise<boolean> {
+  const entry = await getTtl(name, dir);
   if (!entry) return false;
-  return Date.now() >= entry.expiresAt;
+  return Date.now() > entry.expiresAt;
 }
 
-export function getExpiredSnapshots(): string[] {
-  const ttls = loadTtls();
+export async function getExpiredSnapshots(dir: string): Promise<string[]> {
+  const ttls = await loadTtls(dir);
   const now = Date.now();
-  return Object.values(ttls)
-    .filter((e) => now >= e.expiresAt)
-    .map((e) => e.snapshotName);
+  return Object.entries(ttls)
+    .filter(([, entry]) => now > entry.expiresAt)
+    .map(([name]) => name);
 }
