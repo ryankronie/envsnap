@@ -16,16 +16,26 @@ export function registerSnapshotLabelCommand(program: Command): void {
     .command('add <snapshot> <label>')
     .description('Add a label to a snapshot')
     .action((snapshot: string, lbl: string) => {
-      addLabel(snapshot, lbl);
-      console.log(`Label "${lbl}" added to snapshot "${snapshot}".`);
+      try {
+        addLabel(snapshot, lbl);
+        console.log(`Label "${lbl}" added to snapshot "${snapshot}".`);
+      } catch (err) {
+        console.error(`Error adding label: ${(err as Error).message}`);
+        process.exit(1);
+      }
     });
 
   label
     .command('remove <snapshot> <label>')
     .description('Remove a label from a snapshot')
     .action((snapshot: string, lbl: string) => {
-      removeLabel(snapshot, lbl);
-      console.log(`Label "${lbl}" removed from snapshot "${snapshot}".`);
+      try {
+        removeLabel(snapshot, lbl);
+        console.log(`Label "${lbl}" removed from snapshot "${snapshot}".`);
+      } catch (err) {
+        console.error(`Error removing label: ${(err as Error).message}`);
+        process.exit(1);
+      }
     });
 
   label
@@ -56,7 +66,12 @@ export function registerSnapshotLabelCommand(program: Command): void {
     .command('clear <snapshot>')
     .description('Clear all labels from a snapshot')
     .action((snapshot: string) => {
-      clearLabels(snapshot);
-      console.log(`All labels cleared from snapshot "${snapshot}".`);
+      try {
+        clearLabels(snapshot);
+        console.log(`All labels cleared from snapshot "${snapshot}".`);
+      } catch (err) {
+        console.error(`Error clearing labels: ${(err as Error).message}`);
+        process.exit(1);
+      }
     });
 }
