@@ -26,18 +26,23 @@ program
   .description('Print export commands to restore a snapshot')
   .option('--shell <type>', 'shell type: bash | fish', 'bash')
   .action((name: string, options: { shell: string }) => {
-    const snap = loadSnapshot(name);
-    const entries = Object.entries(snap);
-    if (entries.length === 0) {
-      console.log('# No variables found in snapshot.');
-      return;
-    }
-    for (const [key, value] of entries) {
-      if (options.shell === 'fish') {
-        console.log(`set -x ${key} "${value}"`);
-      } else {
-        console.log(`export ${key}="${value}"`);
+    try {
+      const snap = loadSnapshot(name);
+      const entries = Object.entries(snap);
+      if (entries.length === 0) {
+        console.log('# No variables found in snapshot.');
+        return;
       }
+      for (const [key, value] of entries) {
+        if (options.shell === 'fish') {
+          console.log(`set -x ${key} "${value}"`);
+        } else {
+          console.log(`export ${key}="${value}"`);
+        }
+      }
+    } catch (err) {
+      console.error(`Error: snapshot "${name}" not found.`);
+      process.exit(1);
     }
   });
 
@@ -57,8 +62,13 @@ program
   .command('delete <name>')
   .description('Delete a named snapshot')
   .action((name: string) => {
-    deleteSnapshot(name);
-    console.log(`Snapshot "${name}" deleted.`);
+    try {
+      deleteSnapshot(name);
+      console.log(`Snapshot "${name}" deleted.`);
+    } catch (err) {
+      console.error(`Error: snapshot "${name}" not found.`);
+      process.exit(1);
+    }
   });
 
 program.parse(process.argv);
